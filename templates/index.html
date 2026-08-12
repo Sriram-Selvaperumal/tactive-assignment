@@ -1,12 +1,195 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>tactive
-    </title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Data Centre Resource Allocation — manage servers and workloads" />
+  <title>DataCentre Allocator</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
 </head>
 <body>
-    <h1>Server Running Successfully</h1>
+
+  <!-- ============================================================ -->
+  <!-- Header                                                         -->
+  <!-- ============================================================ -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-icon">⬡</span>
+        <span class="logo-text">DataCentre <span class="logo-accent">Allocator</span></span>
+      </div>
+      <div class="api-status" id="api-status">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-label">Connecting…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============================================================ -->
+  <!-- Main                                                           -->
+  <!-- ============================================================ -->
+  <main class="main">
+
+    <!-- ---------------------------------------------------------- -->
+    <!-- Dashboard                                                    -->
+    <!-- ---------------------------------------------------------- -->
+    <section class="section" id="section-dashboard">
+      <h2 class="section-title">Dashboard</h2>
+      <div class="stats-grid" id="dashboard-stats">
+        <div class="stat-card">
+          <div class="stat-value" id="stat-total-servers">—</div>
+          <div class="stat-label">Total Servers</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-online-servers">—</div>
+          <div class="stat-label">Online</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-total-workloads">—</div>
+          <div class="stat-label">Workloads</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-allocated-workloads">—</div>
+          <div class="stat-label">Allocated</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------- -->
+    <!-- Servers                                                      -->
+    <!-- ---------------------------------------------------------- -->
+    <section class="section" id="section-servers">
+      <div class="section-header">
+        <h2 class="section-title">Servers</h2>
+        <button class="btn btn-primary" id="btn-show-server-form">+ Add Server</button>
+      </div>
+
+      <!-- Create server form -->
+      <div class="form-card hidden" id="server-form-card">
+        <h3 class="form-title">New Server</h3>
+        <form id="server-form" novalidate>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="server-name">Name <span class="req">*</span></label>
+              <input type="text" id="server-name" placeholder="e.g. node-01" required />
+            </div>
+            <div class="form-group">
+              <label for="server-type">Type</label>
+              <input type="text" id="server-type" placeholder="general" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="server-cpu">CPU Capacity (cores) <span class="req">*</span></label>
+              <input type="number" id="server-cpu" placeholder="16" min="1" max="10000" required />
+            </div>
+            <div class="form-group">
+              <label for="server-ram">RAM Capacity (MB) <span class="req">*</span></label>
+              <input type="number" id="server-ram" placeholder="32768" min="1" max="1048576" required />
+            </div>
+            <div class="form-group">
+              <label for="server-status">Status</label>
+              <select id="server-status">
+                <option value="ONLINE">ONLINE</option>
+                <option value="OFFLINE">OFFLINE</option>
+                <option value="MAINTENANCE">MAINTENANCE</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Create Server</button>
+            <button type="button" class="btn btn-ghost" id="btn-cancel-server">Cancel</button>
+          </div>
+        </form>
+        <div class="form-feedback hidden" id="server-feedback"></div>
+      </div>
+
+      <!-- Servers list -->
+      <div class="list-container" id="servers-list">
+        <div class="empty-state" id="servers-empty">No servers yet. Add one above.</div>
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------- -->
+    <!-- Workloads                                                    -->
+    <!-- ---------------------------------------------------------- -->
+    <section class="section" id="section-workloads">
+      <div class="section-header">
+        <h2 class="section-title">Workloads</h2>
+        <button class="btn btn-primary" id="btn-show-workload-form">+ Add Workload</button>
+      </div>
+
+      <!-- Create workload form -->
+      <div class="form-card hidden" id="workload-form-card">
+        <h3 class="form-title">New Workload</h3>
+        <form id="workload-form" novalidate>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="workload-name">Name <span class="req">*</span></label>
+              <input type="text" id="workload-name" placeholder="e.g. batch-job-42" required />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="workload-cpu">CPU Required (cores) <span class="req">*</span></label>
+              <input type="number" id="workload-cpu" placeholder="4" min="1" max="10000" required />
+            </div>
+            <div class="form-group">
+              <label for="workload-ram">RAM Required (MB) <span class="req">*</span></label>
+              <input type="number" id="workload-ram" placeholder="8192" min="1" max="1048576" required />
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Create Workload</button>
+            <button type="button" class="btn btn-ghost" id="btn-cancel-workload">Cancel</button>
+          </div>
+        </form>
+        <div class="form-feedback hidden" id="workload-feedback"></div>
+      </div>
+
+      <!-- Workloads list -->
+      <div class="list-container" id="workloads-list">
+        <div class="empty-state" id="workloads-empty">No workloads yet. Add one above.</div>
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------- -->
+    <!-- Allocation                                                   -->
+    <!-- ---------------------------------------------------------- -->
+    <section class="section" id="section-allocations">
+      <h2 class="section-title">Allocate Workload</h2>
+
+      <div class="form-card">
+        <p class="form-hint">Select a <strong>PENDING</strong> workload and submit it for allocation. The system will find the best-fit server.</p>
+        <form id="allocation-form" novalidate>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="alloc-workload-id">Workload <span class="req">*</span></label>
+              <select id="alloc-workload-id">
+                <option value="">— Select a workload —</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="btn-allocate">Allocate</button>
+          </div>
+        </form>
+
+        <!-- Allocation result panel -->
+        <div class="result-panel hidden" id="allocation-result">
+          <div class="result-header" id="result-header"></div>
+          <div class="result-body" id="result-body"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============================================================ -->
+  <!-- Toast notification                                            -->
+  <!-- ============================================================ -->
+  <div class="toast hidden" id="toast" role="alert" aria-live="polite"></div>
+
+  <script src="/static/js/app.js"></script>
 </body>
 </html>
