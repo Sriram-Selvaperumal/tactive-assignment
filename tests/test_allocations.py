@@ -568,3 +568,62 @@ class TestServerDeletionEvictsWorkloads:
         alloc_r = client.get(f"/api/allocations/{alloc['id']}")
         assert alloc_r.status_code == 404
 
+
+class TestWorkloadDeletionFreesResources:
+    def test_delete_allocated_workload_frees_server_resources(self, client):
+        s = make_server(client, cpu=8, ram=16384).get_json()["server"]
+        w = make_workload(client, cpu=4, ram=8192).get_json()["workload"]
+        alloc = allocate(client, w["id"]).get_json()["allocation"]
+
+        srv = get_server(client, s["id"])
+        assert srv["allocated_cpu"] == 4
+        assert srv["allocated_ram"] == 8192
+
+        r = client.delete(f"/api/workloads/{w['id']}")
+        assert r.status_code == 200
+
+        srv_after = get_server(client, s["id"])
+        assert srv_after["allocated_cpu"] == 0
+        assert srv_after["allocated_ram"] == 0
+
+        alloc_r = client.get(f"/api/allocations/{alloc['id']}")
+        assert alloc_r.status_code == 404
+
+
+class TestModifyAllocatedWorkloadResources:
+    def test_modify_resources_success_within_capacity(self, client):
+        s = make_server(client, cpu=8, ram=16384).get_json()["server"]
+        w = make_workload(client, cpu=4, ram=8192).get_json()["workload"]
+        allocate(client, w["id"])
+
+        r = client.patch(f"/api/workloads/{w['id']}", json={"cpu_required": 6, "ram_required": 12288})
+        assert r.status_code == 200
+
+        srv = get_server(client, s["id"])
+        assert srv["allocated_cpu"] == 6
+        assert srv["allocated_ram"] == 12288
+
+    def test_modify_resources_fails_exceeding_capacity(self, client):
+        s = make_server(client, cpu=8, ram=16384).get_json()["server"]
+        w = make_workload(client, cpu=4, ram=8192).get_json()["workload"]
+        allocate(client, w["id"])
+
+        r = client.patch(f"/api/workloads/{w['id']}", json={"cpu_required": 10, "ram_required": 8192})
+        assert r.status_code == 409
+
+        srv = get_server(client, s["id"])
+        assert srv["allocated_cpu"] == 4
+        assert srv["allocated_ram"] == 8192
+
+    def test_modify_resources_same_or_smaller_value_success(self, client):
+        s = make_server(client, cpu=8, ram=16384).get_json()["server"]
+        w = make_workload(client, cpu=4, ram=8192).get_json()["workload"]
+        allocate(client, w["id"])
+
+        r = client.patch(f"/api/workloads/{w['id']}", json={"cpu_required": 2, "ram_required": 4096})
+        assert r.status_code == 200
+
+        srv = get_server(client, s["id"])
+        assert srv["allocated_cpu"] == 2
+        assert srv["allocated_ram"] == 4096
+

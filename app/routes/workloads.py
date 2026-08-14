@@ -11,7 +11,8 @@ from flask import Blueprint, request, current_app
 from pymongo.errors import DuplicateKeyError
 
 from app.models.workload import Workload
-from app.repositories.workload_repository import WorkloadRepository
+from app.repositories import ServerRepository, WorkloadRepository, AllocationRepository
+from app.services import AllocationService, WorkloadNotFoundError, AllocationError
 from app.validators import validate_workload_payload
 from app.errors import success, error
 
@@ -21,6 +22,15 @@ bp = Blueprint("workloads", __name__)
 
 def _repo() -> WorkloadRepository:
     return WorkloadRepository(current_app.db)
+
+
+def _service() -> AllocationService:
+    db = current_app.db
+    return AllocationService(
+        server_repo=ServerRepository(db),
+        workload_repo=_repo(),
+        allocation_repo=AllocationRepository(db),
+    )
 
 
 # ------------------------------------------------------------------ #
@@ -83,3 +93,57 @@ def get_workload(workload_id: str):
     if workload is None:
         return error(f"Workload '{workload_id}' not found.", 404)
     return success({"workload": workload.to_dict()})
+
+
+# ------------------------------------------------------------------ #
+# PATCH /api/workloads/<workload_id>                                   #
+# ------------------------------------------------------------------ #
+
+@bp.patch("/api/workloads/<workload_id>")
+def update_workload_resources(workload_id: str):
+    """
+    Modify CPU cores or RAM required by a workload.
+    """
+    data = request.get_json(silent=True) or {}
+    cpu = data.get("cpu_required")
+    ram = data.get("ram_required")
+    errors = []
+
+    if cpu is None:
+        errors.append("'cpu_required' is required.")
+    elif not isinstance(cpu, int) or isinstance(cpu, bool) or cpu < 1 or cpu > 10000:
+        errors.append("'cpu_required' must be an integer between 1 and 10000.")
+
+    if ram is None:
+        errors.append("'ram_required' is required.")
+    elif not isinstance(ram, int) or isinstance(ram, bool) or ram < 1 or ram > 1048576:
+        errors.append("'ram_required' must be an integer between 1 and 1048576.")
+
+    if errors:
+        return error("Validation failed.", 400, errors)
+
+    try:
+        updated = _service().update_workload_resources(workload_id, cpu, ram)
+        logger.info("Workload %s resources updated (CPU: %s, RAM: %s)", workload_id, cpu, ram)
+        return success({"workload": updated.to_dict()}, 200)
+    except WorkloadNotFoundError as exc:
+        return error(str(exc), 404)
+    except AllocationError as exc:
+        return error(str(exc), 409)
+
+
+# ------------------------------------------------------------------ #
+# DELETE /api/workloads/<workload_id>                                  #
+# ------------------------------------------------------------------ #
+
+@bp.delete("/api/workloads/<workload_id>")
+def delete_workload(workload_id: str):
+    """
+    Permanently delete a workload.
+    """
+    try:
+        _service().delete_workload(workload_id)
+        logger.info("Workload %s deleted", workload_id)
+        return success({"deleted": True, "workload_id": workload_id}, 200)
+    except WorkloadNotFoundError as exc:
+        return error(str(exc), 404)

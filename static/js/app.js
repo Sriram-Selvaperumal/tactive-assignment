@@ -178,6 +178,26 @@ async function deleteServer(serverId) {
   }
 }
 
+async function updateWorkloadResources(workloadId, cpu, ram) {
+  const r = await api.patch(`/api/workloads/${workloadId}`, { cpu_required: cpu, ram_required: ram });
+  if (r.ok) {
+    ui.toast('Workload resources updated.', 'success');
+    await refreshAll();
+  } else {
+    ui.toast(r.data.message || 'Failed to update workload resources.', 'error');
+  }
+}
+
+async function deleteWorkload(workloadId) {
+  const r = await api.delete(`/api/workloads/${workloadId}`);
+  if (r.ok) {
+    ui.toast('Workload deleted successfully.', 'success');
+    await refreshAll();
+  } else {
+    ui.toast(r.data.message || 'Failed to delete workload.', 'error');
+  }
+}
+
 /* ================================================================
    Renderers
    ================================================================ */
@@ -342,8 +362,47 @@ function renderWorkloads(list) {
     res.appendChild(makeBlock('CPU req.', w.cpu_required + ' cores'));
     res.appendChild(makeBlock('RAM req.', w.ram_required + ' MB'));
 
+    // Controls
+    const controls = document.createElement('div');
+    controls.className = 'item-controls';
+
+    // Edit button
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn btn-ghost btn-edit-workload';
+    editBtn.textContent = 'Edit';
+    editBtn.addEventListener('click', async () => {
+      const cpuInput = prompt(`Edit CPU cores (1-10000) for "${w.name}":`, w.cpu_required);
+      if (cpuInput === null) return;
+      const cpu = parseInt(cpuInput, 10);
+      
+      const ramInput = prompt(`Edit RAM (MB, 1-1048576) for "${w.name}":`, w.ram_required);
+      if (ramInput === null) return;
+      const ram = parseInt(ramInput, 10);
+
+      if (isNaN(cpu) || cpu < 1 || cpu > 10000 || isNaN(ram) || ram < 1 || ram > 1048576) {
+        ui.toast('Invalid inputs. CPU and RAM must be valid integers within limit.', 'error');
+        return;
+      }
+      await updateWorkloadResources(w.id, cpu, ram);
+    });
+
+    // Delete button
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'btn btn-ghost btn-danger btn-delete-workload';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.addEventListener('click', async () => {
+      const warning = `Warning: Permanently delete workload "${w.name}"? This action cannot be undone.`;
+      if (confirm(warning)) {
+        await deleteWorkload(w.id);
+      }
+    });
+
+    controls.appendChild(editBtn);
+    controls.appendChild(deleteBtn);
+
     card.appendChild(main);
     card.appendChild(res);
+    card.appendChild(controls);
     container.appendChild(card);
   });
 }

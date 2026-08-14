@@ -55,6 +55,31 @@ class WorkloadRepository:
         )
         return result.matched_count == 1
 
+    def delete(self, workload_id: str) -> bool:
+        """Permanently delete a workload."""
+        oid = self._to_oid(workload_id)
+        if oid is None:
+            return False
+        result = self._col.delete_one({"_id": oid})
+        return result.deleted_count == 1
+
+    def update_resources(self, workload_id: str, cpu: int, ram: int) -> bool:
+        """Update workload requested resources."""
+        oid = self._to_oid(workload_id)
+        if oid is None:
+            return False
+        result = self._col.update_one(
+            {"_id": oid},
+            {
+                "$set": {
+                    "cpu_required": cpu,
+                    "ram_required": ram,
+                    "updated_at": datetime.now(timezone.utc),
+                }
+            },
+        )
+        return result.matched_count == 1
+
     @staticmethod
     def _to_oid(id_str: str) -> ObjectId | None:
         try:

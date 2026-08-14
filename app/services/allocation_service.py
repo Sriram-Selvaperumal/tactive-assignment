@@ -281,3 +281,76 @@ class AllocationService:
             self._allocations.delete_by_workload_id(alloc.workload_id)
 
         self._servers.delete(server_id)
+
+    def delete_workload(self, workload_id: str) -> None:
+        """
+        Permanently delete a workload. If the workload is allocated,
+        free resources from its assigned server and delete the allocation record.
+        """
+        workload = self._workloads.get_by_id(workload_id)
+        if not workload:
+            raise WorkloadNotFoundError(f"Workload '{workload_id}' not found.")
+
+        if workload.status == WorkloadStatus.ALLOCATED:
+            alloc = self._allocations.get_by_workload_id(workload_id)
+            if alloc:
+                # Decrement server resources by negative increment
+                self._servers.increment_allocated_resources(
+                    alloc.server_id,
+                    -workload.cpu_required,
+                    -workload.ram_required
+                )
+                self._allocations.delete_by_workload_id(workload_id)
+
+        self._workloads.delete(workload_id)
+
+    def update_workload_resources(self, workload_id: str, new_cpu: int, new_ram: int) -> Workload:
+        """
+        Update the CPU and RAM allocation of a workload.
+        If allocated, validates resource capacity on the server and applies adjustments.
+        """
+        workload = self._workloads.get_by_id(workload_id)
+        if not workload:
+            raise WorkloadNotFoundError(f"Workload '{workload_id}' not found.")
+
+        # If PENDING, just update direct resources
+        if workload.status == WorkloadStatus.PENDING:
+            self._workloads.update_resources(workload_id, new_cpu, new_ram)
+            return self._workloads.get_by_id(workload_id)
+
+        # If ALLOCATED, perform capacity check
+        alloc = self._allocations.get_by_workload_id(workload_id)
+        if not alloc:
+            # Fallback in case status is inconsistent: just update direct
+            self._workloads.update_resources(workload_id, new_cpu, new_ram)
+            return self._workloads.get_by_id(workload_id)
+
+        server = self._servers.get_by_id(alloc.server_id)
+        if not server:
+            # Server went missing: update workload and clear allocation
+            self._allocations.delete_by_workload_id(workload_id)
+            self._workloads.update_status(workload_id, WorkloadStatus.PENDING)
+            self._workloads.update_resources(workload_id, new_cpu, new_ram)
+            return self._workloads.get_by_id(workload_id)
+
+        # Capacity check accounting for existing allocation
+        max_available_cpu = server.available_cpu + workload.cpu_required
+        max_available_ram = server.available_ram + workload.ram_required
+
+        if new_cpu > max_available_cpu or new_ram > max_available_ram:
+            raise AllocationError(
+                f"Requested resources (CPU: {new_cpu}, RAM: {new_ram}) exceed "
+                f"available capacity on server '{server.name}' "
+                f"(Max available CPU: {max_available_cpu}, Max available RAM: {max_available_ram})."
+            )
+
+        # Calculate adjustments
+        cpu_delta = new_cpu - workload.cpu_required
+        ram_delta = new_ram - workload.ram_required
+
+        # Atomically update server resource usage (can be negative/decrement)
+        self._servers.increment_allocated_resources(server.id, cpu_delta, ram_delta)
+
+        # Update workload
+        self._workloads.update_resources(workload_id, new_cpu, new_ram)
+        return self._workloads.get_by_id(workload_id)

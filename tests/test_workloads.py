@@ -166,3 +166,44 @@ class TestGetWorkload:
     def test_invalid_id_format_returns_404(self, client):
         r = client.get("/api/workloads/not-a-valid-id")
         assert r.status_code == 404
+
+
+class TestUpdateWorkloadResources:
+    def test_update_resources_valid(self, client):
+        w = make_workload(client, cpu=4, ram=8192).get_json()["workload"]
+        r = client.patch(f"/api/workloads/{w['id']}", json={"cpu_required": 8, "ram_required": 16384})
+        assert r.status_code == 200
+        data = r.get_json()
+        assert data["workload"]["cpu_required"] == 8
+        assert data["workload"]["ram_required"] == 16384
+
+    def test_update_resources_invalid_values(self, client):
+        w = make_workload(client, cpu=4, ram=8192).get_json()["workload"]
+        r = client.patch(f"/api/workloads/{w['id']}", json={"cpu_required": -1, "ram_required": 8192})
+        assert r.status_code == 400
+        r = client.patch(f"/api/workloads/{w['id']}", json={"cpu_required": 4, "ram_required": 9999999})
+        assert r.status_code == 400
+
+    def test_update_resources_missing_fields(self, client):
+        w = make_workload(client, cpu=4, ram=8192).get_json()["workload"]
+        r = client.patch(f"/api/workloads/{w['id']}", json={"cpu_required": 8})
+        assert r.status_code == 400
+
+    def test_update_resources_nonexistent_workload(self, client):
+        r = client.patch("/api/workloads/000000000000000000000000", json={"cpu_required": 4, "ram_required": 8192})
+        assert r.status_code == 404
+
+
+class TestDeleteWorkload:
+    def test_delete_existing_workload(self, client):
+        w = make_workload(client).get_json()["workload"]
+        r = client.delete(f"/api/workloads/{w['id']}")
+        assert r.status_code == 200
+        assert r.get_json()["deleted"] is True
+
+        r_get = client.get(f"/api/workloads/{w['id']}")
+        assert r_get.status_code == 404
+
+    def test_delete_nonexistent_workload(self, client):
+        r = client.delete("/api/workloads/000000000000000000000000")
+        assert r.status_code == 404
