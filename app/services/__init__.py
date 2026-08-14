@@ -6,6 +6,7 @@ from .allocation_service import (
     WorkloadNotFoundError,
     WorkloadAlreadyAllocatedError,
     NoEligibleServerError,
+    ServerNotFoundError,
 )
 
 __all__ = [
@@ -15,4 +16,5 @@ __all__ = [
     "WorkloadNotFoundError",
     "WorkloadAlreadyAllocatedError",
     "NoEligibleServerError",
+    "ServerNotFoundError",
 ]

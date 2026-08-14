@@ -41,6 +41,16 @@ class AllocationRepository:
         doc = self._col.find_one({"workload_id": workload_id})
         return Allocation.from_doc(doc) if doc else None
 
+    def get_by_server_id(self, server_id: str) -> list[Allocation]:
+        """Return all allocations for a given server."""
+        cursor = self._col.find({"server_id": server_id})
+        return [Allocation.from_doc(doc) for doc in cursor]
+
+    def delete_by_workload_id(self, workload_id: str) -> bool:
+        """Delete allocation record for a given workload."""
+        result = self._col.delete_one({"workload_id": workload_id})
+        return result.deleted_count == 1
+
     @staticmethod
     def _to_oid(id_str: str) -> ObjectId | None:
         try:

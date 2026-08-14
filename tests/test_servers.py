@@ -72,3 +72,41 @@ class TestGetServer:
     def test_invalid_id_returns_404(self, client):
         r = client.get("/api/servers/not-a-valid-id")
         assert r.status_code == 404
+
+
+class TestUpdateServerStatus:
+    def test_update_status_valid(self, client):
+        s = make_server(client, name="node-01").get_json()["server"]
+        r = client.patch(f"/api/servers/{s['id']}/status", json={"status": "MAINTENANCE"})
+        assert r.status_code == 200
+        assert r.get_json()["server"]["status"] == "MAINTENANCE"
+
+    def test_update_status_invalid_value(self, client):
+        s = make_server(client, name="node-01").get_json()["server"]
+        r = client.patch(f"/api/servers/{s['id']}/status", json={"status": "INVALID_STATE"})
+        assert r.status_code == 400
+
+    def test_update_status_missing_status(self, client):
+        s = make_server(client, name="node-01").get_json()["server"]
+        r = client.patch(f"/api/servers/{s['id']}/status", json={})
+        assert r.status_code == 400
+
+    def test_update_status_nonexistent_server(self, client):
+        r = client.patch("/api/servers/000000000000000000000000/status", json={"status": "OFFLINE"})
+        assert r.status_code == 404
+
+
+class TestDeleteServer:
+    def test_delete_existing_server(self, client):
+        s = make_server(client, name="node-01").get_json()["server"]
+        r = client.delete(f"/api/servers/{s['id']}")
+        assert r.status_code == 200
+        assert r.get_json()["deleted"] is True
+
+        # Ensure it is gone
+        r_get = client.get(f"/api/servers/{s['id']}")
+        assert r_get.status_code == 404
+
+    def test_delete_nonexistent_server(self, client):
+        r = client.delete("/api/servers/000000000000000000000000")
+        assert r.status_code == 404

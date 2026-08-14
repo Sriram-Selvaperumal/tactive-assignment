@@ -61,6 +61,10 @@ class NoEligibleServerError(AllocationError):
     pass
 
 
+class ServerNotFoundError(AllocationError):
+    pass
+
+
 # ------------------------------------------------------------------ #
 # Result object                                                        #
 # ------------------------------------------------------------------ #
@@ -236,3 +240,44 @@ class AllocationService:
             (server.available_cpu - workload.cpu_required)
             + (server.available_ram - workload.ram_required)
         )
+
+    def update_server_status(self, server_id: str, status_str: str) -> Server:
+        """
+        Update the status of a server. If the status is moved to OFFLINE or MAINTENANCE,
+        de-allocate all workloads currently assigned to this server and reset resource counts.
+        """
+        server = self._servers.get_by_id(server_id)
+        if not server:
+            raise ServerNotFoundError(f"Server '{server_id}' not found.")
+
+        try:
+            new_status = ServerStatus(status_str.upper())
+        except ValueError:
+            raise AllocationError(f"Invalid status value: {status_str}")
+
+        if new_status in (ServerStatus.OFFLINE, ServerStatus.MAINTENANCE):
+            # Find and evict workloads
+            allocations = self._allocations.get_by_server_id(server_id)
+            for alloc in allocations:
+                self._workloads.update_status(alloc.workload_id, WorkloadStatus.PENDING)
+                self._allocations.delete_by_workload_id(alloc.workload_id)
+            self._servers.reset_resources(server_id)
+
+        self._servers.update_status(server_id, new_status)
+        return self._servers.get_by_id(server_id)
+
+    def delete_server(self, server_id: str) -> None:
+        """
+        Permanently delete a server, and de-allocate all workloads assigned to it.
+        """
+        server = self._servers.get_by_id(server_id)
+        if not server:
+            raise ServerNotFoundError(f"Server '{server_id}' not found.")
+
+        # Find and evict workloads
+        allocations = self._allocations.get_by_server_id(server_id)
+        for alloc in allocations:
+            self._workloads.update_status(alloc.workload_id, WorkloadStatus.PENDING)
+            self._allocations.delete_by_workload_id(alloc.workload_id)
+
+        self._servers.delete(server_id)

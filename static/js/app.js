@@ -31,6 +31,8 @@ const api = {
 
   get:  (path)       => api.request('GET',  path),
   post: (path, body) => api.request('POST', path, body),
+  patch: (path, body) => api.request('PATCH', path, body),
+  delete: (path)     => api.request('DELETE', path),
 };
 
 /* ================================================================
@@ -155,6 +157,27 @@ async function refreshAll() {
   populateWorkloadSelect(workloads);
 }
 
+async function updateServerStatus(serverId, status) {
+  const r = await api.patch(`/api/servers/${serverId}/status`, { status });
+  if (r.ok) {
+    ui.toast(`Server status updated to ${status}.`, 'success');
+    await refreshAll();
+  } else {
+    ui.toast(r.data.message || 'Failed to update server status.', 'error');
+    await refreshAll();
+  }
+}
+
+async function deleteServer(serverId) {
+  const r = await api.delete(`/api/servers/${serverId}`);
+  if (r.ok) {
+    ui.toast('Server deleted successfully.', 'success');
+    await refreshAll();
+  } else {
+    ui.toast(r.data.message || 'Failed to delete server.', 'error');
+  }
+}
+
 /* ================================================================
    Renderers
    ================================================================ */
@@ -214,8 +237,55 @@ function renderServers(list) {
     res.appendChild(makeBlock('CPU (cores)', s.allocated_cpu, s.cpu_capacity));
     res.appendChild(makeBlock('RAM (MB)', s.allocated_ram, s.ram_capacity));
 
+    // Controls
+    const controls = document.createElement('div');
+    controls.className = 'item-controls';
+
+    // Status select
+    const statusSelect = document.createElement('select');
+    statusSelect.className = 'server-status-select';
+    statusSelect.dataset.id = s.id;
+    statusSelect.addEventListener('change', async (e) => {
+      const newStatus = e.target.value;
+      if (newStatus !== s.status) {
+        let warning = '';
+        if (newStatus === 'OFFLINE' || newStatus === 'MAINTENANCE') {
+          warning = `Warning: Setting this server to ${newStatus} will evict and re-queue all workloads assigned to it. Do you want to proceed?`;
+        }
+        if (warning && !confirm(warning)) {
+          // Revert selection
+          statusSelect.value = s.status;
+          return;
+        }
+        await updateServerStatus(s.id, newStatus);
+      }
+    });
+
+    ['ONLINE', 'OFFLINE', 'MAINTENANCE'].forEach(status => {
+      const opt = document.createElement('option');
+      opt.value = status;
+      opt.textContent = status;
+      if (s.status === status) opt.selected = true;
+      statusSelect.appendChild(opt);
+    });
+
+    // Delete button
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'btn btn-ghost btn-danger btn-delete-server';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.addEventListener('click', async () => {
+      const warning = `Warning: Permanently delete server "${s.name}"? All assigned workloads will be unassigned and re-queued. This action cannot be undone.`;
+      if (confirm(warning)) {
+        await deleteServer(s.id);
+      }
+    });
+
+    controls.appendChild(statusSelect);
+    controls.appendChild(deleteBtn);
+
     card.appendChild(main);
     card.appendChild(res);
+    card.appendChild(controls);
     container.appendChild(card);
   });
 }

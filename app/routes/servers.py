@@ -15,7 +15,8 @@ from flask import Blueprint, request, current_app
 from pymongo.errors import DuplicateKeyError
 
 from app.models.server import Server, ServerStatus
-from app.repositories.server_repository import ServerRepository
+from app.repositories import ServerRepository, WorkloadRepository, AllocationRepository
+from app.services import AllocationService, ServerNotFoundError, AllocationError
 from app.validators import validate_server_payload
 from app.errors import success, error
 
@@ -25,6 +26,15 @@ bp = Blueprint("servers", __name__)
 
 def _repo() -> ServerRepository:
     return ServerRepository(current_app.db)
+
+
+def _service() -> AllocationService:
+    db = current_app.db
+    return AllocationService(
+        server_repo=_repo(),
+        workload_repo=WorkloadRepository(db),
+        allocation_repo=AllocationRepository(db),
+    )
 
 
 # ------------------------------------------------------------------ #
@@ -106,3 +116,44 @@ def get_server(server_id: str):
     if server is None:
         return error(f"Server '{server_id}' not found.", 404)
     return success({"server": server.to_dict()})
+
+
+# ------------------------------------------------------------------ #
+# PATCH /api/servers/<server_id>/status                                #
+# ------------------------------------------------------------------ #
+
+@bp.patch("/api/servers/<server_id>/status")
+def update_server_status(server_id: str):
+    """
+    Update the status of a server.
+    """
+    data = request.get_json(silent=True) or {}
+    status = data.get("status")
+    if not status or not isinstance(status, str) or not status.strip():
+        return error("Status is required and must be a non-empty string.", 400)
+
+    try:
+        updated = _service().update_server_status(server_id, status.strip())
+        logger.info("Server %s status updated to %s", server_id, status)
+        return success({"server": updated.to_dict()}, 200)
+    except ServerNotFoundError as exc:
+        return error(str(exc), 404)
+    except AllocationError as exc:
+        return error(str(exc), 400)
+
+
+# ------------------------------------------------------------------ #
+# DELETE /api/servers/<server_id>                                      #
+# ------------------------------------------------------------------ #
+
+@bp.delete("/api/servers/<server_id>")
+def delete_server(server_id: str):
+    """
+    Permanently delete a server.
+    """
+    try:
+        _service().delete_server(server_id)
+        logger.info("Server %s deleted", server_id)
+        return success({"deleted": True, "server_id": server_id}, 200)
+    except ServerNotFoundError as exc:
+        return error(str(exc), 404)

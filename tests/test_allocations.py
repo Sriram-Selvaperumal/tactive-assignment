@@ -472,3 +472,99 @@ class TestGetAllocation:
     def test_get_invalid_id_returns_404(self, client):
         r = client.get("/api/allocations/bad-id")
         assert r.status_code == 404
+
+
+# ====================================================================
+# WORKLOAD EVICTION & RE-QUEUEING
+# ====================================================================
+
+class TestServerStatusChangeEvictsWorkloads:
+
+    def test_evict_workloads_on_offline(self, client):
+        s = make_server(client, cpu=16, ram=32768).get_json()["server"]
+        w = make_workload(client, cpu=4, ram=8192).get_json()["workload"]
+        alloc = allocate(client, w["id"]).get_json()["allocation"]
+
+        # Update status to OFFLINE
+        r = client.patch(f"/api/servers/{s['id']}/status", json={"status": "OFFLINE"})
+        assert r.status_code == 200
+
+        # Check workload is back to PENDING
+        wl = get_workload(client, w["id"])
+        assert wl["status"] == "PENDING"
+
+        # Check allocation record is gone
+        alloc_r = client.get(f"/api/allocations/{alloc['id']}")
+        assert alloc_r.status_code == 404
+
+        # Check server resources are reset
+        srv = get_server(client, s["id"])
+        assert srv["allocated_cpu"] == 0
+        assert srv["allocated_ram"] == 0
+        assert srv["status"] == "OFFLINE"
+
+    def test_evict_workloads_on_maintenance(self, client):
+        s = make_server(client, cpu=16, ram=32768).get_json()["server"]
+        w = make_workload(client, cpu=4, ram=8192).get_json()["workload"]
+        alloc = allocate(client, w["id"]).get_json()["allocation"]
+
+        # Update status to MAINTENANCE
+        r = client.patch(f"/api/servers/{s['id']}/status", json={"status": "MAINTENANCE"})
+        assert r.status_code == 200
+
+        # Check workload is back to PENDING
+        wl = get_workload(client, w["id"])
+        assert wl["status"] == "PENDING"
+
+        # Check allocation record is gone
+        alloc_r = client.get(f"/api/allocations/{alloc['id']}")
+        assert alloc_r.status_code == 404
+
+        # Check server resources are reset
+        srv = get_server(client, s["id"])
+        assert srv["allocated_cpu"] == 0
+        assert srv["allocated_ram"] == 0
+        assert srv["status"] == "MAINTENANCE"
+
+    def test_no_eviction_on_online(self, client):
+        s = make_server(client, cpu=16, ram=32768).get_json()["server"]
+        w = make_workload(client, cpu=4, ram=8192).get_json()["workload"]
+        alloc = allocate(client, w["id"]).get_json()["allocation"]
+
+        # Update status to ONLINE (no change)
+        r = client.patch(f"/api/servers/{s['id']}/status", json={"status": "ONLINE"})
+        assert r.status_code == 200
+
+        # Workload should remain ALLOCATED
+        wl = get_workload(client, w["id"])
+        assert wl["status"] == "ALLOCATED"
+
+        # Allocation record exists
+        alloc_r = client.get(f"/api/allocations/{alloc['id']}")
+        assert alloc_r.status_code == 200
+
+        # Resources remain allocated
+        srv = get_server(client, s["id"])
+        assert srv["allocated_cpu"] == 4
+        assert srv["allocated_ram"] == 8192
+
+
+class TestServerDeletionEvictsWorkloads:
+
+    def test_evict_workloads_on_deletion(self, client):
+        s = make_server(client, cpu=16, ram=32768).get_json()["server"]
+        w = make_workload(client, cpu=4, ram=8192).get_json()["workload"]
+        alloc = allocate(client, w["id"]).get_json()["allocation"]
+
+        # Delete server
+        r = client.delete(f"/api/servers/{s['id']}")
+        assert r.status_code == 200
+
+        # Check workload is back to PENDING
+        wl = get_workload(client, w["id"])
+        assert wl["status"] == "PENDING"
+
+        # Check allocation record is gone
+        alloc_r = client.get(f"/api/allocations/{alloc['id']}")
+        assert alloc_r.status_code == 404
+

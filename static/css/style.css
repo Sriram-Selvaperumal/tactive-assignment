@@ -259,6 +259,46 @@ input, select, button { font-family: inherit; font-size: inherit; }
 }
 .btn-ghost:hover { background: var(--bg); }
 
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+.btn-danger:hover {
+  background: #b91c1c;
+}
+.btn-ghost.btn-danger {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--border);
+}
+.btn-ghost.btn-danger:hover {
+  background: #fef2f2;
+  border-color: var(--danger);
+}
+
+.item-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-left: auto;
+  min-width: 180px;
+  justify-content: flex-end;
+}
+
+.server-status-select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  font-size: 12px;
+  cursor: pointer;
+}
+.server-status-select:focus {
+  border-color: var(--primary);
+}
+
 /* ----------------------------------------------------------------
    Form feedback
    ---------------------------------------------------------------- */

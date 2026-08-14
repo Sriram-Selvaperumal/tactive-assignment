@@ -92,6 +92,47 @@ class ServerRepository:
         cursor = self._col.find({"status": ServerStatus.ONLINE.value}).sort("created_at", 1)
         return [Server.from_doc(doc) for doc in cursor]
 
+    def update_status(self, server_id: str, status: ServerStatus) -> bool:
+        """Update only the status of a server."""
+        oid = self._to_oid(server_id)
+        if oid is None:
+            return False
+        result = self._col.update_one(
+            {"_id": oid},
+            {
+                "$set": {
+                    "status": status.value,
+                    "updated_at": datetime.now(timezone.utc),
+                }
+            },
+        )
+        return result.matched_count == 1
+
+    def delete(self, server_id: str) -> bool:
+        """Permanently delete a server."""
+        oid = self._to_oid(server_id)
+        if oid is None:
+            return False
+        result = self._col.delete_one({"_id": oid})
+        return result.deleted_count == 1
+
+    def reset_resources(self, server_id: str) -> bool:
+        """Reset allocated CPU and RAM to 0."""
+        oid = self._to_oid(server_id)
+        if oid is None:
+            return False
+        result = self._col.update_one(
+            {"_id": oid},
+            {
+                "$set": {
+                    "allocated_cpu": 0,
+                    "allocated_ram": 0,
+                    "updated_at": datetime.now(timezone.utc),
+                }
+            },
+        )
+        return result.matched_count == 1
+
     # ------------------------------------------------------------------ #
     # Helpers                                                              #
     # ------------------------------------------------------------------ #
