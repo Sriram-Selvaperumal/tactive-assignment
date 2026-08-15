@@ -122,14 +122,14 @@ class AllocationService:
             logger.warning("Allocation rejected: workload %s not found.", workload_id)
             raise WorkloadNotFoundError(f"Workload '{workload_id}' not found.")
 
-        # Rule 6 — no duplicate allocation
-        if workload.status == WorkloadStatus.ALLOCATED:
-            logger.warning(
-                "Allocation rejected: workload %s is already ALLOCATED.", workload_id
-            )
-            raise WorkloadAlreadyAllocatedError(
-                f"Workload '{workload.name}' is already allocated."
-            )
+        # Rule 6 — no duplicate allocation (TEMPORARILY DISABLED FOR RED RUN)
+        # if workload.status == WorkloadStatus.ALLOCATED:
+        #     logger.warning(
+        #         "Allocation rejected: workload %s is already ALLOCATED.", workload_id
+        #     )
+        #     raise WorkloadAlreadyAllocatedError(
+        #         f"Workload '{workload.name}' is already allocated."
+        #     )
 
         # --- Step 2: Find eligible servers --------------------------------
         # Rule 1 — only ONLINE servers
@@ -138,7 +138,7 @@ class AllocationService:
         # Rules 2, 3, 4 — sufficient CPU AND RAM
         eligible = [
             s for s in online_servers
-            if s.available_cpu >= workload.cpu_required
+            if s.available_cpu > workload.cpu_required
             and s.available_ram >= workload.ram_required
         ]
 
