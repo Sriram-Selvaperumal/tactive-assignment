@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: tactive-datacenter-allocator
+    runtime: python
+    rootDir: tactive_project
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn "run:app" --bind 0.0.0.0:$PORT --workers 2
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: MONGO_DBNAME
+        value: datacenter_db
+      - key: SECRET_KEY
+        generateValue: true
